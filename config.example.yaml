@@ -1,0 +1,27 @@
+# 复制为 config.yaml 后填写真实值
+
+# DSM 地址（File Station API）
+# 推荐用域名（经 frp/反代）：https://dsm.bimsoft.top
+# 备选直连公网 HTTPS：https://116.62.128.103:5001
+# 内网亦可：https://192.168.x.x:5001
+nas_url: "https://dsm.bimsoft.top"
+
+# 建议使用仅对该目录有读写权限的专用账号
+username: "uploader"
+password: "change-me"
+
+# NAS 上映射到公网域名的目录（Web Station / 反代文档根）
+remote_path: "/web/upload"
+
+# 公网可访问的 URL 前缀（对应 remote_path）
+# 不新开子域名时：https://bimsoft.top/typora（VPS nginx 反代到 frp 本地端口）
+public_base_url: "https://bimsoft.top/typora"
+
+# 证书域名与 IP 不一致、或自签证书时设为 false
+verify_ssl: true
+
+# 同名文件是否覆盖
+overwrite: false
+
+# 按日期分子目录，如 images/2026/07/23/
+date_subdir: true
