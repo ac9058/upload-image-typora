@@ -6,7 +6,11 @@ chcp 65001 >nul
 set "SCRIPT_DIR=%~dp0"
 set "PYEXE="
 
-if exist "%LOCALAPPDATA%\Python\bin\python.exe" (
+if exist "%SCRIPT_DIR%.venv\Scripts\python.exe" (
+  set "PYEXE=%SCRIPT_DIR%.venv\Scripts\python.exe"
+) else if exist "%SCRIPT_DIR%venv\Scripts\python.exe" (
+  set "PYEXE=%SCRIPT_DIR%venv\Scripts\python.exe"
+) else if exist "%LOCALAPPDATA%\Python\bin\python.exe" (
   set "PYEXE=%LOCALAPPDATA%\Python\bin\python.exe"
 ) else if exist "%LOCALAPPDATA%\Programs\Python\Python314\python.exe" (
   set "PYEXE=%LOCALAPPDATA%\Programs\Python\Python314\python.exe"

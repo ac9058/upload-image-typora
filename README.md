@@ -20,17 +20,24 @@
 
 ## 安装
 
+推荐使用项目内虚拟环境（Typora 启动时 PATH 很精简，常会落到没有依赖的系统 Python）。
+
 ```bash
 cd /path/to/uploadimage
 
-# Windows（若直接敲 pip/python 报错，用完整路径或 -m pip）
-"%LOCALAPPDATA%\Python\bin\python.exe" -m pip install -r requirements.txt
-copy config.example.yaml config.yaml
-
 # macOS / Linux
-python3 -m pip install -r requirements.txt
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
 cp config.example.yaml config.yaml
+chmod +x upload.sh
+
+# Windows（若直接敲 pip/python 报错，用完整路径或 -m pip）
+"%LOCALAPPDATA%\Python\bin\python.exe" -m venv .venv
+.venv\Scripts\python.exe -m pip install -r requirements.txt
+copy config.example.yaml config.yaml
 ```
+
+`upload.sh` / `upload.cmd` 会优先使用 `.venv` 中的 Python。
 
 > Windows 提示：`pip` / `python` 不是命令，多半是未进 PATH，或被微软商店占位符拦截。请用上面的 `python.exe -m pip`，不要单独运行 `pip`。
 
