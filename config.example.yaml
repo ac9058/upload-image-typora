@@ -11,7 +11,7 @@ username: "uploader"
 password: "change-me"
 
 # NAS 上映射到公网域名的目录（Web Station / 反代文档根）
-remote_path: "/web/upload"
+remote_path: "/home/typora_images"
 
 # 公网可访问的 URL 前缀（对应 remote_path）
 # 不新开子域名时：https://bimsoft.top/typora（VPS nginx 反代到 frp 本地端口）
