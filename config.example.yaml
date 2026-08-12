@@ -7,14 +7,14 @@
 nas_url: "https://dsm.bimsoft.top"
 
 # 建议使用仅对该目录有读写权限的专用账号
-username: "uploader"
-password: "change-me"
+username: "xuetao"
+password: "xxxxx"
 
 # NAS 上映射到公网域名的目录（Web Station / 反代文档根）
 remote_path: "/home/typora_images"
 
-# 公网可访问的 URL 前缀（对应 remote_path）
-# 不新开子域名时：https://bimsoft.top/typora（VPS nginx 反代到 frp 本地端口）
+# 公网可访问的 URL 前缀（对应 remote_path = NAS 静态站文档根）
+# https://bimsoft.top/typora → VPS nginx → 127.0.0.1:8899 → frp TCP → NAS :8889
 public_base_url: "https://bimsoft.top/typora"
 
 # 证书域名与 IP 不一致、或自签证书时设为 false
