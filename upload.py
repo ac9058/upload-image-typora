@@ -20,7 +20,11 @@ CONFIG_ENV = "SYNO_UPLOAD_CONFIG"
 SCRIPT_DIR = Path(__file__).resolve().parent
 LAST_LOG = SCRIPT_DIR / "upload.last.log"
 
-AUTH_ERROR_HINTS = {
+ERROR_HINTS = {
+    105: "当前会话没有权限（检查账号对 remote_path 的读写权限）",
+    106: "会话超时，请重试",
+    107: "会话被重复登录中断",
+    119: "无效会话（SID 未带到上传请求）",
     400: "账号不存在或密码错误",
     401: "账号已停用",
     402: "权限不足",
@@ -86,6 +90,7 @@ class SynologyClient:
         self.session = requests.Session()
         self.session.verify = bool(config["verify_ssl"])
         self.sid: str | None = None
+        self.synotoken: str | None = None
         self._api_info: dict[str, Any] = {}
 
     def _webapi(self, api_name: str, fallback_path: str) -> str:
@@ -103,7 +108,7 @@ class SynologyClient:
         if not payload.get("success"):
             err = payload.get("error") or {}
             code = err.get("code", "unknown")
-            hint = AUTH_ERROR_HINTS.get(code) if isinstance(code, int) else None
+            hint = ERROR_HINTS.get(code) if isinstance(code, int) else None
             extra = f" — {hint}" if hint else ""
             raise SynologyError(f"{action} 失败 (error code={code}{extra}): {payload}")
         return payload.get("data") or {}
@@ -141,6 +146,7 @@ class SynologyClient:
             "passwd": self.config["password"],
             "session": "FileStation",
             "format": "sid",
+            "enable_syno_token": "yes",
         }
         otp = self.config.get("otp_code")
         if otp:
@@ -153,6 +159,7 @@ class SynologyClient:
         if not sid:
             raise SynologyError("登录成功但未返回 sid")
         self.sid = sid
+        self.synotoken = data.get("synotoken") or data.get("SynoToken")
         log("已登录 DSM")
 
     def logout(self) -> None:
@@ -175,6 +182,7 @@ class SynologyClient:
             log(f"登出失败（可忽略）: {exc}")
         finally:
             self.sid = None
+            self.synotoken = None
 
     def upload(self, local_path: Path, dest_folder: str, dest_name: str) -> None:
         if not self.sid:
@@ -184,24 +192,34 @@ class SynologyClient:
         if not mime:
             mime = "application/octet-stream"
 
+        # multipart 里的 _sid 常被 DSM 忽略 → error 119；必须放在 query string
+        params: dict[str, str] = {
+            "api": "SYNO.FileStation.Upload",
+            "version": str(min(self._api_version("SYNO.FileStation.Upload", 2), 3)),
+            "method": "upload",
+            "_sid": self.sid,
+        }
+        headers = {}
+        if self.synotoken:
+            params["SynoToken"] = self.synotoken
+            headers["X-SYNO-TOKEN"] = self.synotoken
+
         # Upload API create_parents=true 会自动创建日期子目录，无需单独 CreateFolder
         with local_path.open("rb") as fh:
             files = {
                 "file": (dest_name, fh, mime),
             }
             data = {
-                "api": "SYNO.FileStation.Upload",
-                "version": "2",
-                "method": "upload",
                 "path": dest_folder,
                 "create_parents": "true",
                 "overwrite": "true" if self.config["overwrite"] else "false",
-                "_sid": self.sid,
             }
             resp = self.session.post(
                 self._entry(),
+                params=params,
                 data=data,
                 files=files,
+                headers=headers,
                 timeout=120,
             )
         resp.raise_for_status()
