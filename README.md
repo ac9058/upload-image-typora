@@ -1,4 +1,4 @@
-# uploadimage
+# upload-image-typora
 
 Typora 自定义图片上传器：通过 **Synology File Station API** 把本地图片传到群晖 NAS，并返回可公网访问的 URL。
 
@@ -21,8 +21,8 @@ Windows / macOS / Linux 共用同一套 Python 脚本。
 ## Quick Start
 
 ```bash
-git clone <your-repo-url> uploadimage
-cd uploadimage
+git clone https://github.com/ac9058/upload-image-typora.git
+cd upload-image-typora
 ```
 
 **macOS / Linux**
@@ -101,19 +101,19 @@ export SYNO_UPLOAD_CONFIG=/path/to/config.yaml
 **Windows**
 
 ```text
-E:\dev\uploadimage\upload.cmd
+E:\dev\upload-image-typora\upload.cmd
 ```
 
 控制台乱码时可改为：
 
 ```text
-@chcp 65001 >nul & cmd /d/s/c E:\dev\uploadimage\upload.cmd
+@chcp 65001 >nul & cmd /d/s/c E:\dev\upload-image-typora\upload.cmd
 ```
 
 **macOS / Linux**
 
 ```text
-/path/to/uploadimage/upload.sh
+/path/to/upload-image-typora/upload.sh
 ```
 
 5. 点击「验证图像上传器」，确认返回以 `https://` 开头的 URL。
@@ -121,7 +121,7 @@ E:\dev\uploadimage\upload.cmd
 ## Project Layout
 
 ```text
-uploadimage/
+upload-image-typora/
 ├── upload.py              # 主逻辑
 ├── upload.cmd             # Windows 入口（优先 .venv）
 ├── upload.sh              # Unix 入口（优先 .venv）
