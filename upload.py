@@ -18,14 +18,48 @@ import yaml
 
 CONFIG_ENV = "SYNO_UPLOAD_CONFIG"
 SCRIPT_DIR = Path(__file__).resolve().parent
+LAST_LOG = SCRIPT_DIR / "upload.last.log"
+
+AUTH_ERROR_HINTS = {
+    400: "账号不存在或密码错误",
+    401: "账号已停用",
+    402: "权限不足",
+    403: "需要两步验证码（请在 config.yaml 填写 otp_code）",
+    404: "两步验证失败",
+    406: "必须绑定 OTP",
+    407: "登录次数过多，账号已暂时锁定，请稍后再试",
+    408: "密码已过期",
+    409: "必须修改密码",
+    410: "账号已锁定",
+}
 
 
 class SynologyError(RuntimeError):
     """Raised when DSM / File Station API returns an error."""
 
 
+def _configure_stdio() -> None:
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, OSError):
+            pass
+
+
 def log(msg: str) -> None:
-    print(msg, file=sys.stderr)
+    print(msg, file=sys.stderr, flush=True)
+    try:
+        with LAST_LOG.open("a", encoding="utf-8") as fh:
+            fh.write(msg + "\n")
+    except OSError:
+        pass
+
+
+def fail(msg: str) -> int:
+    """Log to stderr and stdout so Typora's validation dialog can show it."""
+    log(msg)
+    print(msg, flush=True)
+    return 1
 
 
 def load_config(path: Path) -> dict[str, Any]:
@@ -54,17 +88,24 @@ class SynologyClient:
         self.sid: str | None = None
         self._api_info: dict[str, Any] = {}
 
+    def _webapi(self, api_name: str, fallback_path: str) -> str:
+        info = self._api_info.get(api_name) or {}
+        path = str(info.get("path") or fallback_path).lstrip("/")
+        return f"{self.config['nas_url']}/webapi/{path}"
+
     def _entry(self) -> str:
-        return f"{self.config['nas_url']}/webapi/entry.cgi"
+        return self._webapi("SYNO.FileStation.Upload", "entry.cgi")
 
     def _auth(self) -> str:
-        return f"{self.config['nas_url']}/webapi/auth.cgi"
+        return self._webapi("SYNO.API.Auth", "entry.cgi")
 
     def _check(self, payload: dict[str, Any], action: str) -> dict[str, Any]:
         if not payload.get("success"):
             err = payload.get("error") or {}
             code = err.get("code", "unknown")
-            raise SynologyError(f"{action} 失败 (error code={code}): {payload}")
+            hint = AUTH_ERROR_HINTS.get(code) if isinstance(code, int) else None
+            extra = f" — {hint}" if hint else ""
+            raise SynologyError(f"{action} 失败 (error code={code}{extra}): {payload}")
         return payload.get("data") or {}
 
     def query_apis(self) -> None:
@@ -90,20 +131,22 @@ class SynologyClient:
 
     def login(self) -> None:
         self.query_apis()
-        auth_ver = min(self._api_version("SYNO.API.Auth", 3), 3)
-        resp = self.session.get(
-            self._auth(),
-            params={
-                "api": "SYNO.API.Auth",
-                "version": auth_ver,
-                "method": "login",
-                "account": self.config["username"],
-                "passwd": self.config["password"],
-                "session": "FileStation",
-                "format": "sid",
-            },
-            timeout=30,
-        )
+        # DSM 7 Auth 走 entry.cgi；version 6 兼容性最好。用 POST，避免反代/WAF 丢掉 URL 里的 passwd
+        auth_ver = min(self._api_version("SYNO.API.Auth", 6), 6)
+        payload = {
+            "api": "SYNO.API.Auth",
+            "version": str(auth_ver),
+            "method": "login",
+            "account": self.config["username"],
+            "passwd": self.config["password"],
+            "session": "FileStation",
+            "format": "sid",
+        }
+        otp = self.config.get("otp_code")
+        if otp:
+            payload["otp_code"] = str(otp)
+        log(f"正在登录 DSM ({self.config['nas_url']}, 用户 {self.config['username']})...")
+        resp = self.session.post(self._auth(), data=payload, timeout=30)
         resp.raise_for_status()
         data = self._check(resp.json(), "登录")
         sid = data.get("sid")
@@ -116,12 +159,12 @@ class SynologyClient:
         if not self.sid:
             return
         try:
-            auth_ver = min(self._api_version("SYNO.API.Auth", 3), 3)
-            self.session.get(
+            auth_ver = min(self._api_version("SYNO.API.Auth", 6), 6)
+            self.session.post(
                 self._auth(),
-                params={
+                data={
                     "api": "SYNO.API.Auth",
-                    "version": auth_ver,
+                    "version": str(auth_ver),
                     "method": "logout",
                     "session": "FileStation",
                     "_sid": self.sid,
@@ -206,22 +249,28 @@ def resolve_config_path() -> Path:
 
 
 def main(argv: list[str] | None = None) -> int:
+    _configure_stdio()
+    try:
+        LAST_LOG.write_text("", encoding="utf-8")
+    except OSError:
+        pass
+
     parser = argparse.ArgumentParser(description="Upload images to Synology for Typora")
     parser.add_argument("images", nargs="+", help="Local image file paths")
     args = parser.parse_args(argv)
 
+    log(f"开始处理 {len(args.images)} 个文件")
+
     try:
         config = load_config(resolve_config_path())
     except SynologyError as exc:
-        log(str(exc))
-        return 1
+        return fail(str(exc))
 
     paths: list[Path] = []
     for raw in args.images:
         p = Path(raw).expanduser().resolve()
         if not p.is_file():
-            log(f"文件不存在: {p}")
-            return 1
+            return fail(f"文件不存在: {p}")
         paths.append(p)
 
     client = SynologyClient(config)
@@ -235,8 +284,7 @@ def main(argv: list[str] | None = None) -> int:
             urls.append(url)
             log(f"成功: {url}")
     except (SynologyError, requests.RequestException, OSError) as exc:
-        log(f"错误: {exc}")
-        return 1
+        return fail(f"错误: {exc}")
     finally:
         client.logout()
 

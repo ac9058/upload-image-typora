@@ -2,6 +2,8 @@
 setlocal EnableExtensions
 REM Force UTF-8 so Typora can parse Chinese/error output correctly
 chcp 65001 >nul
+set "PYTHONUTF8=1"
+set "PYTHONIOENCODING=utf-8"
 
 set "SCRIPT_DIR=%~dp0"
 set "PYEXE="

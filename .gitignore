@@ -1,4 +1,5 @@
 config.yaml
+upload.last.log
 __pycache__/
 *.py[cod]
 .Python
